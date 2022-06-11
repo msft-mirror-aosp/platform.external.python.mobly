@@ -132,20 +132,26 @@ class AndroidDeviceTest(unittest.TestCase):
     with self.assertRaisesRegex(android_device.Error, expected_msg):
       android_device.create([1])
 
+  @mock.patch('mobly.controllers.android_device.list_fastboot_devices')
   @mock.patch('mobly.controllers.android_device.list_adb_devices')
   @mock.patch('mobly.controllers.android_device.list_adb_devices_by_usb_id')
   @mock.patch('mobly.controllers.android_device.AndroidDevice')
-  def test_get_instances(self, mock_ad_class, mock_list_adb_usb, mock_list_adb):
+  def test_get_instances(self, mock_ad_class, mock_list_adb_usb, mock_list_adb,
+                         mock_list_fastboot):
+    mock_list_fastboot.return_value = ['0']
     mock_list_adb.return_value = ['1']
     mock_list_adb_usb.return_value = []
-    android_device.get_instances(['1'])
-    mock_ad_class.assert_called_with('1')
+    android_device.get_instances(['0', '1'])
+    mock_ad_class.assert_any_call('0')
+    mock_ad_class.assert_any_call('1')
 
+  @mock.patch('mobly.controllers.android_device.list_fastboot_devices')
   @mock.patch('mobly.controllers.android_device.list_adb_devices')
   @mock.patch('mobly.controllers.android_device.list_adb_devices_by_usb_id')
   @mock.patch('mobly.controllers.android_device.AndroidDevice')
   def test_get_instances_do_not_exist(self, mock_ad_class, mock_list_adb_usb,
-                                      mock_list_adb):
+                                      mock_list_adb, mock_list_fastboot):
+    mock_list_fastboot.return_value = []
     mock_list_adb.return_value = []
     mock_list_adb_usb.return_value = []
     with self.assertRaisesRegex(
@@ -154,12 +160,14 @@ class AndroidDeviceTest(unittest.TestCase):
     ):
       android_device.get_instances(['1'])
 
+  @mock.patch('mobly.controllers.android_device.list_fastboot_devices')
   @mock.patch('mobly.controllers.android_device.list_adb_devices')
   @mock.patch('mobly.controllers.android_device.list_adb_devices_by_usb_id')
   @mock.patch('mobly.controllers.android_device.AndroidDevice')
   def test_get_instances_with_configs(self, mock_ad_class, mock_list_adb_usb,
-                                      mock_list_adb):
-    mock_list_adb.return_value = ['1', '2']
+                                      mock_list_adb, mock_list_fastboot):
+    mock_list_fastboot.return_value = ['1']
+    mock_list_adb.return_value = ['2']
     mock_list_adb_usb.return_value = []
     configs = [{'serial': '1'}, {'serial': '2'}]
     android_device.get_instances_with_configs(configs)
@@ -173,12 +181,15 @@ class AndroidDeviceTest(unittest.TestCase):
         f'Required value "serial" is missing in AndroidDevice config {config}'):
       android_device.get_instances_with_configs([config])
 
+  @mock.patch('mobly.controllers.android_device.list_fastboot_devices')
   @mock.patch('mobly.controllers.android_device.list_adb_devices')
   @mock.patch('mobly.controllers.android_device.list_adb_devices_by_usb_id')
   @mock.patch('mobly.controllers.android_device.AndroidDevice')
   def test_get_instances_with_configsdo_not_exist(self, mock_ad_class,
                                                   mock_list_adb_usb,
-                                                  mock_list_adb):
+                                                  mock_list_adb,
+                                                  mock_list_fastboot):
+    mock_list_fastboot.return_value = []
     mock_list_adb.return_value = []
     mock_list_adb_usb.return_value = []
     config = {'serial': '1'}
@@ -859,8 +870,8 @@ class AndroidDeviceTest(unittest.TestCase):
   @mock.patch('mobly.utils.create_dir')
   @mock.patch('mobly.logger.get_log_file_timestamp')
   def test_AndroidDevice_take_screenshot_with_prefix(
-    self, get_log_file_timestamp_mock, create_dir_mock,
-    FastbootProxy, MockAdbProxy):
+      self, get_log_file_timestamp_mock, create_dir_mock, FastbootProxy,
+      MockAdbProxy):
     get_log_file_timestamp_mock.return_value = '07-22-2019_17-53-34-450'
     mock_serial = '1'
     ad = android_device.AndroidDevice(serial=mock_serial)
@@ -1141,22 +1152,19 @@ class AndroidDeviceTest(unittest.TestCase):
     mock_serial = '1'
     ad = android_device.AndroidDevice(serial=mock_serial)
     self.assertEqual(ad.debug_tag, '1')
-    with self.assertRaisesRegex(
-        android_device.DeviceError,
-        r'<AndroidDevice\|1> Something'):
+    with self.assertRaisesRegex(android_device.DeviceError,
+                                r'<AndroidDevice\|1> Something'):
       raise android_device.DeviceError(ad, 'Something')
 
     # Verify that debug tag's setter updates the debug prefix correctly.
     ad.debug_tag = 'Mememe'
-    with self.assertRaisesRegex(
-        android_device.DeviceError,
-        r'<AndroidDevice\|Mememe> Something'):
+    with self.assertRaisesRegex(android_device.DeviceError,
+                                r'<AndroidDevice\|Mememe> Something'):
       raise android_device.DeviceError(ad, 'Something')
 
     # Verify that repr is changed correctly.
-    with self.assertRaisesRegex(
-        Exception,
-        r'(<AndroidDevice\|Mememe>, \'Something\')'):
+    with self.assertRaisesRegex(Exception,
+                                r'(<AndroidDevice\|Mememe>, \'Something\')'):
       raise Exception(ad, 'Something')
 
   @mock.patch('mobly.controllers.android_device_lib.adb.AdbProxy',
