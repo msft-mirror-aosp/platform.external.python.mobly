@@ -149,7 +149,8 @@ def _validate_device_existence(serials):
     serials: list of strings, the serials of all the devices that are expected
       to exist.
   """
-  valid_ad_identifiers = list_adb_devices() + list_adb_devices_by_usb_id()
+  valid_ad_identifiers = (list_adb_devices() + list_adb_devices_by_usb_id() +
+                          list_fastboot_devices())
   for serial in serials:
     if serial not in valid_ad_identifiers:
       raise Error(f'Android device serial "{serial}" is specified in '
@@ -240,6 +241,9 @@ def list_adb_devices_by_usb_id():
 def list_fastboot_devices():
   """List all android devices connected to the computer that are in in
   fastboot mode. These are detected by fastboot.
+
+  This function doesn't raise any error if `fastboot` binary doesn't exist,
+  because `FastbootProxy` itself doesn't raise any error.
 
   Returns:
     A list of android device serials. Empty if there's none.
@@ -433,7 +437,7 @@ def take_bug_reports(ads, test_name=None, begin_time=None, destination=None):
 
 class BuildInfoConstants(enum.Enum):
   """Enums for build info constants used for AndroidDevice build info.
-  
+
   Attributes:
     build_info_key: The key used for the build_info dictionary in AndroidDevice.
     system_prop_key: The key used for getting the build info from system
@@ -787,7 +791,7 @@ class AndroidDevice:
       device is in bootloader mode.
     """
     if self.is_bootloader:
-      self.log.error('Device is in fastboot mode, could not get build ' 'info.')
+      self.log.error('Device is in fastboot mode, could not get build info.')
       return
     if self._build_info is None or self._is_rebooting:
       info = {}
