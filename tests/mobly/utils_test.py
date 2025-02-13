@@ -47,11 +47,13 @@ def _is_process_running(pid):
   if os.name == 'nt':
     return (
         str(pid)
-        in subprocess.check_output([
-            'tasklist',
-            '/fi',
-            f'PID eq {pid}',
-        ]).decode()
+        in subprocess.check_output(
+            [
+                'tasklist',
+                '/fi',
+                f'PID eq {pid}',
+            ]
+        ).decode()
     )
 
   try:
@@ -120,11 +122,11 @@ class UtilsTest(unittest.TestCase):
     self.assertListEqual(pid_list, [])
 
   @unittest.skipIf(
-      os.name == 'nt',
+      platform.system() != 'Linux',
       'collect_process_tree only available on Unix like system.',
   )
   @mock.patch('subprocess.check_output')
-  def test_collect_process_tree_returns_list(self, mock_check_output):
+  def test_collect_process_tree_returns_list_on_linux(self, mock_check_output):
     # Creates subprocess 777 with descendants looks like:
     # subprocess 777
     #   ├─ 780 (child)
@@ -155,7 +157,62 @@ class UtilsTest(unittest.TestCase):
 
     pid_list = utils._collect_process_tree(777)
 
-    self.assertListEqual(pid_list, [780, 791, 799, 888, 890, 913, 999])
+    expected_child_pid_list = [780, 791, 799, 888, 890, 913, 999]
+    self.assertListEqual(pid_list, expected_child_pid_list)
+
+    for pid in [777] + expected_child_pid_list:
+      mock_check_output.assert_any_call(
+          [
+              'ps',
+              '-o',
+              'pid',
+              '--ppid',
+              str(pid),
+              '--noheaders',
+          ]
+      )
+
+  @unittest.skipIf(
+      platform.system() != 'Darwin',
+      'collect_process_tree only available on Unix like system.',
+  )
+  @mock.patch('subprocess.check_output')
+  def test_collect_process_tree_returns_list_on_macos(self, mock_check_output):
+    # Creates subprocess 777 with descendants looks like:
+    # subprocess 777
+    #   ├─ 780 (child)
+    #   │  ├─ 888 (grandchild)
+    #   │  │    ├─ 913 (great grandchild)
+    #   │  │    └─ 999 (great grandchild)
+    #   │  └─ 890 (grandchild)
+    #   ├─ 791 (child)
+    #   └─ 799 (child)
+    mock_check_output.side_effect = (
+        # ps -o pid --ppid 777 --noheaders
+        b'780\n 791\n 799\n',
+        # ps -o pid --ppid 780 --noheaders
+        b'888\n 890\n',
+        # ps -o pid --ppid 791 --noheaders
+        subprocess.CalledProcessError(-1, 'fake_cmd'),
+        # ps -o pid --ppid 799 --noheaders
+        subprocess.CalledProcessError(-1, 'fake_cmd'),
+        # ps -o pid --ppid 888 --noheaders
+        b'913\n 999\n',
+        # ps -o pid --ppid 890 --noheaders
+        subprocess.CalledProcessError(-1, 'fake_cmd'),
+        # ps -o pid --ppid 913 --noheaders
+        subprocess.CalledProcessError(-1, 'fake_cmd'),
+        # ps -o pid --ppid 999 --noheaders
+        subprocess.CalledProcessError(-1, 'fake_cmd'),
+    )
+
+    pid_list = utils._collect_process_tree(777)
+
+    expected_child_pid_list = [780, 791, 799, 888, 890, 913, 999]
+    self.assertListEqual(pid_list, expected_child_pid_list)
+
+    for pid in [777] + expected_child_pid_list:
+      mock_check_output.assert_any_call(['pgrep', '-P', str(pid)])
 
   @mock.patch.object(os, 'kill')
   @mock.patch.object(utils, '_collect_process_tree')
@@ -169,11 +226,13 @@ class UtilsTest(unittest.TestCase):
     with mock.patch.object(os, 'name', new='posix'):
       utils._kill_process_tree(mock_proc)
 
-    mock_os_kill.assert_has_calls([
-        mock.call(799, signal.SIGTERM),
-        mock.call(888, signal.SIGTERM),
-        mock.call(890, signal.SIGTERM),
-    ])
+    mock_os_kill.assert_has_calls(
+        [
+            mock.call(799, signal.SIGTERM),
+            mock.call(888, signal.SIGTERM),
+            mock.call(890, signal.SIGTERM),
+        ]
+    )
     mock_proc.kill.assert_called_once()
 
   @mock.patch.object(os, 'kill')
@@ -215,13 +274,15 @@ class UtilsTest(unittest.TestCase):
     with mock.patch.object(os, 'name', new='nt'):
       utils._kill_process_tree(mock_proc)
 
-    mock_check_output.assert_called_once_with([
-        'taskkill',
-        '/F',
-        '/T',
-        '/PID',
-        '123',
-    ])
+    mock_check_output.assert_called_once_with(
+        [
+            'taskkill',
+            '/F',
+            '/T',
+            '/PID',
+            '123',
+        ]
+    )
 
   def test_run_command(self):
     ret, _, _ = utils.run_command(self.sleep_cmd(0.01))
@@ -343,6 +404,36 @@ class UtilsTest(unittest.TestCase):
         stderr=subprocess.PIPE,
         shell=False,
         env=mock_env,
+    )
+
+  @mock.patch('subprocess.Popen')
+  def test_start_standing_subproc_with_custom_stdout(self, mock_popen):
+    mock_stdout = mock.MagicMock(spec=io.TextIOWrapper)
+
+    utils.start_standing_subprocess(self.sleep_cmd(0.01), stdout=mock_stdout)
+
+    mock_popen.assert_called_with(
+        self.sleep_cmd(0.01),
+        stdin=subprocess.PIPE,
+        stdout=mock_stdout,
+        stderr=subprocess.PIPE,
+        shell=False,
+        env=None,
+    )
+
+  @mock.patch('subprocess.Popen')
+  def test_start_standing_subproc_with_custom_stderr(self, mock_popen):
+    mock_stderr = mock.MagicMock(spec=io.TextIOWrapper)
+
+    utils.start_standing_subprocess(self.sleep_cmd(0.01), stderr=mock_stderr)
+
+    mock_popen.assert_called_with(
+        self.sleep_cmd(0.01),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=mock_stderr,
+        shell=False,
+        env=None,
     )
 
   def test_stop_standing_subproc(self):
