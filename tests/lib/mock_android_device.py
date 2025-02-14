@@ -87,6 +87,7 @@ class MockAdbProxy:
       mock_properties=None,
       installed_packages=None,
       instrumented_packages=None,
+      adb_detectable=True,
   ):
     self.serial = serial
     self.fail_br = fail_br
@@ -101,6 +102,7 @@ class MockAdbProxy:
     self.installed_packages = installed_packages
     if instrumented_packages is None:
       instrumented_packages = []
+    self.adb_detectable = adb_detectable
     self.installed_packages = installed_packages
     self.instrumented_packages = instrumented_packages
 
@@ -124,10 +126,13 @@ class MockAdbProxy:
       )
     elif 'pm list instrumentation' in params:
       return bytes(
-          '\n'.join([
-              'instrumentation:%s/%s (target=%s)' % (package, runner, target)
-              for package, runner, target in self.instrumented_packages
-          ]),
+          '\n'.join(
+              [
+                  'instrumentation:%s/%s (target=%s)'
+                  % (package, runner, target)
+                  for package, runner, target in self.instrumented_packages
+              ]
+          ),
           'utf-8',
       )
     elif 'which' in params:
@@ -150,6 +155,12 @@ class MockAdbProxy:
     )
     if expected not in args:
       raise Error('"Expected "%s", got "%s"' % (expected, args))
+
+  def devices(self):
+    out = b'xxxx\tdevice\nyyyy\tdevice'
+    if self.adb_detectable:
+      out += f'\n{self.serial}\tdevice'.encode()
+    return out
 
   def __getattr__(self, name):
     """All calls to the none-existent functions in adb proxy would

@@ -273,19 +273,19 @@ def _collect_process_tree(starting_pid):
 
   while stack:
     pid = stack.pop()
+    if platform.system() == 'Darwin':
+      command = ['pgrep', '-P', str(pid)]
+    else:
+      command = [
+          'ps',
+          '-o',
+          'pid',
+          '--ppid',
+          str(pid),
+          '--noheaders',
+      ]
     try:
-      ps_results = (
-          subprocess.check_output([
-              'ps',
-              '-o',
-              'pid',
-              '--ppid',
-              str(pid),
-              '--noheaders',
-          ])
-          .decode()
-          .strip()
-      )
+      ps_results = subprocess.check_output(command).decode().strip()
     except subprocess.CalledProcessError:
       # Ignore if there is not child process.
       continue
@@ -303,13 +303,15 @@ def _kill_process_tree(proc):
     # The taskkill command with "/T" option ends the specified process and any
     # child processes started by it:
     # https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
-    subprocess.check_output([
-        'taskkill',
-        '/F',
-        '/T',
-        '/PID',
-        str(proc.pid),
-    ])
+    subprocess.check_output(
+        [
+            'taskkill',
+            '/F',
+            '/T',
+            '/PID',
+            str(proc.pid),
+        ]
+    )
     return
 
   failed = []
@@ -495,10 +497,23 @@ def run_command(
     raise subprocess.TimeoutExpired(
         cmd=cmd, timeout=timeout, output=out, stderr=err
     )
+  logging.debug(
+      'cmd: %s, stdout: %s, stderr: %s, ret: %s',
+      cli_cmd_to_string(cmd),
+      out,
+      err,
+      process.returncode,
+  )
   return process.returncode, out, err
 
 
-def start_standing_subprocess(cmd, shell=False, env=None):
+def start_standing_subprocess(
+    cmd,
+    shell=False,
+    env=None,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+):
   """Starts a long-running subprocess.
 
   This is not a blocking call and the subprocess started by it should be
@@ -510,10 +525,14 @@ def start_standing_subprocess(cmd, shell=False, env=None):
   Args:
     cmd: string, the command to start the subprocess with.
     shell: bool, True to run this command through the system shell,
-      False to invoke it directly. See subprocess.Proc() docs.
+      False to invoke it directly. See subprocess.Popen() docs.
     env: dict, a custom environment to run the standing subprocess. If not
       specified, inherits the current environment. See subprocess.Popen()
       docs.
+    stdout: None, subprocess.PIPE, subprocess.DEVNULL, an existing file
+      descriptor, or an existing file object. See subprocess.Popen() docs.
+    stderr: None, subprocess.PIPE, subprocess.DEVNULL, an existing file
+      descriptor, or an existing file object. See subprocess.Popen() docs.
 
   Returns:
     The subprocess that was started.
@@ -522,8 +541,8 @@ def start_standing_subprocess(cmd, shell=False, env=None):
   proc = subprocess.Popen(
       cmd,
       stdin=subprocess.PIPE,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
+      stdout=stdout,
+      stderr=stderr,
       shell=shell,
       env=env,
   )

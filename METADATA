@@ -7,14 +7,14 @@ description: "Mobly is a Python-based test framework that specializes in support
 third_party {
   license_type: NOTICE
   last_upgrade_date {
-    year: 2024
-    month: 8
-    day: 13
+    year: 2025
+    month: 2
+    day: 12
   }
   homepage: "https://github.com/google/mobly"
   identifier {
     type: "Git"
     value: "https://github.com/google/mobly"
-    version: "1.12.3"
+    version: "1.12.4"
   }
 }
