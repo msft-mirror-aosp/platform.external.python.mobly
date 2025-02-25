@@ -17,6 +17,9 @@ from subprocess import Popen, PIPE
 
 from mobly import utils
 
+# Command to use for running fastboot commands.
+FASTBOOT = 'fastboot'
+
 
 def exe_cmd(*cmds):
   """Executes commands in a new shell. Directing stderr to PIPE.
@@ -60,16 +63,17 @@ class FastbootProxy:
 
   def __init__(self, serial=''):
     self.serial = serial
-    if serial:
-      self.fastboot_str = 'fastboot -s {}'.format(serial)
-    else:
-      self.fastboot_str = 'fastboot'
+
+  def fastboot_str(self):
+    if self.serial:
+      return '{} -s {}'.format(FASTBOOT, self.serial)
+    return FASTBOOT
 
   def _exec_fastboot_cmd(self, name, arg_str):
-    return exe_cmd(' '.join((self.fastboot_str, name, arg_str)))
+    return exe_cmd(' '.join((self.fastboot_str(), name, arg_str)))
 
   def args(self, *args):
-    return exe_cmd(' '.join((self.fastboot_str,) + args))
+    return exe_cmd(' '.join((self.fastboot_str(),) + args))
 
   def __getattr__(self, name):
     def fastboot_call(*args):
