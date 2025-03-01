@@ -9,12 +9,12 @@ third_party {
   last_upgrade_date {
     year: 2025
     month: 2
-    day: 12
+    day: 25
   }
   homepage: "https://github.com/google/mobly"
   identifier {
     type: "Git"
     value: "https://github.com/google/mobly"
-    version: "1.12.4"
+    version: "a489d904870e349ce47cc972d0f20c4723316cce"
   }
 }
