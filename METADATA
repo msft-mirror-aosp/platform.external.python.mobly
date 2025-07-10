@@ -8,13 +8,13 @@ third_party {
   license_type: NOTICE
   last_upgrade_date {
     year: 2025
-    month: 6
-    day: 5
+    month: 7
+    day: 9
   }
   homepage: "https://github.com/google/mobly"
   identifier {
     type: "Git"
     value: "https://github.com/google/mobly"
-    version: "e6450d8ef156278413d0c08121e96ffac200d287"
+    version: "7bfe05de81eb352337bbebc21921ba92bc0d69d5"
   }
 }
