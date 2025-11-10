@@ -228,7 +228,9 @@ class SnippetClientV2(client_base.ClientBase):
         for the current user.
     """
     # Validate that the Mobly Snippet app is installed for the current user.
-    out = self._adb.shell(f'pm list package --user {self.user_id}')
+    out = self._adb.shell(
+        f'pm list packages --user {self.user_id} {self.package}'
+    )
     if not utils.grep(f'^package:{self.package}$', out):
       raise errors.ServerStartPreCheckError(
           self._device,
